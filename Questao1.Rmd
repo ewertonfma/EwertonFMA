@@ -1,0 +1,87 @@
+---
+title: "Questão 1"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+
+## Passo 1
+
+Para o cálculo do indicador de reputação de cada empresa *j*, do setor *k*, no dia *t*, denominado $\alpha_{j,k,t}$, será utilizada a média ponderada das notas de uma empresa dentro de cada dia. A fórmula matemática será:
+
+$$\alpha_{t,j,k} = \frac{\sum_{i = 1}^{n_{t,j,k}}{S_{t,j,k,i}}}{n_{t,j,k}}$$
+
+onde:
+
+* $\alpha_{t,j,k}$ é o indicador de reputação da empresa *j*, no setor *k*, no dia *t*.
+
+* $S_{t,j,k,i}$ é o score atribuído pelo cliente na venda *i* para a empresa *j*, no setor *k*, no dia *t*.
+
+* $n_{t,j,k}$ é o número de vendas da empresa *j* do setor *k* no dia *t*.
+
+
+$\alpha_{t,j,k}$ nos dá o indicador de reputação da empresa considerando apenas o período de tempo *t*. Para obtermos um indicador dinâmico da empresa que, a cada dia, passe a considerar as avaliações mais recentes (dando mais peso a estas mas sem deixar de considerar as mais antigas) utilizaremos a fórmula abaixo:
+
+$$ A_{j,k} = \frac{\sum_{t = 1}^{T}{(\alpha_{t,j,k}Y_{t})}}{T}  $$
+sendo:
+
+* *T* é o número de dias onde houve alguma avaliação.
+
+* $Y_{t}$ é o peso dado a cada dia avaliado. Seu cálculo é:
+
+$$ Y_{t} = \frac{y_t}{\sum_t^T{y_t}} $$
+
+e
+
+$$ y_t = K.e^{\frac{-td}{T}} $$
+em que *td* é o tempo decorrido entre a avaliação e a data de hoje e K é uma constante (podendo inclusive ser unitária).
+
+Dessa forma teremos tanto o indicador $\alpha_{t,j,k}$ que considera apenas as avaliações do dia quanto $A_{j,k}$, que considera todos os dias anteriores onde houve avaliação da empresa e atribui maior relevância aos dias mais recentes.
+
+
+## Passo 2
+
+Para obtermos um indicador para cada setor por dia realizaremos a agregação dos $\alpha_{t,j,k}$ individuais de cada empresa através de uma média ponderada que terá como pesos a relevância da empresa dentro do setor, medida pela quantidade de avaliações por dia. Matematicamente:
+
+$$ \beta_{t,k} = \frac{\sum_{j = 1}^{m_{t,k}}{(\alpha_{t,j,k}.W_{t,j,k})}}{m_{t,k}} $$
+
+onde:
+
+* $\beta_{t,k}$ é o indicador de reputação do setor *k*, no dia *t*.
+
+* $m_{t,k}$ é a quantidade de empresas do setor *k* avaliadas no dia *t*.
+
+* $W_{t,j,k}$ é o peso relativo ao tamanho da empresa dentro do setor (total de vendas da empresa dividido pelo total de vendas do setor no dia *t*), calculado através da fórmula:
+
+$$ W_{t,j,k} = \frac{n_{t,j,k}}{\sum_j^{m_{t,k}}n_{t,j,k}} $$
+
+De forma semelhante ao caso do indicador da empresa, agregaremos temporalmente os indicadores setoriais $\beta_{t,k}$ utilizando os pesos diários $Y_{t}$.
+
+$$ B_{k} = \frac{\sum_{t = 1}^{T}{(\beta_{t,k}Y_{t})}}{T} $$
+
+*T* representa o total de dias onde houve avaliações no setor *k*.
+ 
+
+## Passo 3
+
+
+Para medir a reputação geral em um dia *t* agregaremos os indicadores setoriais $\beta_{t,k}$
+
+
+$$ \gamma{t} = \frac{\sum_{k = 1}^{q_{t}}{\beta_{t,k}.Z_k}}{q_t} $$
+onde:
+
+* $\gamma{t}$ é o indicador geral de reputação no dia *t*.
+
+* $q_t$ é a quantidade total de setores avaliados no dia *t*.
+
+* $Z_k$ é o peso relativo ao tamanho do setor dentro das vendas totais (total de vendas do setor dividido pelo total geral de vendas no dia *t*), calculado por:
+
+$$ Z_k = \frac{n_{t,k}}{n_t} $$
+
+
+Mais uma vez agregaremos os indicadores que consideram os dias individualmente em um indicador geral que agrega todos os dias avaliados:
+
+$$ \Gamma = \frac{\sum_{t = 1}^{T}{(\gamma_{t}Y_{t})}}{T} $$
+
+
