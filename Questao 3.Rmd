@@ -1,0 +1,373 @@
+---
+title: "Questão 3"
+output:  html_notebook
+---
+
+## Preparação do ambiente e Leitura dos dados
+
+```{r echo=TRUE}
+# Código para instalar e carregar os pacotes necessários durante o processo
+rm(list = ls())
+ip <- installed.packages()
+for (i in c("tidyverse","readxl", "ggplot2", "stargazer","xtable", "gridExtra", "knitr", "hrbrthemes", "viridis", "reshape2")){
+  if ( !(i %in% ip) ) { install.packages(i) }
+  if (i=="Quandl") { library(i, character.only = T) ; Quandl.auth("WP2rt8HsRo3kjWsRkLY5") } 
+  else library(i, character.only = T)
+}
+rm(list=c("ip","i"))
+
+# Opções
+
+options(digits = "2", scipen = 99)
+
+```
+
+```{r  echo=TRUE}
+unzip("base_setorial.zip")
+pnad = read.csv("base/pnad.csv", sep = ",")
+```
+
+## Limpeza da Base
+
+```{r  echo=TRUE}
+# Criação de uma cópia da base original onde serão realizadas as modificações
+df <- pnad %>%   
+# Eliminação das observações com data de nascimento inválida
+  filter(V2008 != 99) %>% 
+# Unificação as colunas relativas à data de nascimento
+  unite(col = "data_nascimento", c(V2008,V20081,V20082), sep = "/", remove = TRUE) %>%
+# Criação de uma variável que indentifique o domicílio 
+  unite(col = "domicilio", c(UPA, V1008, V1014), sep = ".", remove = TRUE) %>%
+# Criação de uma variável que indentifique o Indivíduo
+  unite(col = 'individuo', c(domicilio, data_nascimento, V2007, Ano), sep = "-", remove = FALSE) %>%
+# Eliminação dos gêmeos  
+  mutate(gemeos = ifelse(duplicated(individuo) | duplicated(individuo, fromLast=TRUE), 1,0)) %>%
+  filter(gemeos == 0) %>% select(-gemeos) %>%
+  mutate(
+    idade_grupo = case_when(
+      V2009 <= 14              ~ "0-14",
+      V2009 > 14 & V2009 <= 20 ~ "15-20",
+      V2009 > 20 & V2009 <= 30 ~ "21-30",
+      V2009 > 30 & V2009 <= 40 ~ "31-40",
+      V2009 > 40 & V2009 <= 50 ~ "41-50",
+      V2009 > 50 & V2009 <= 60 ~ "51-60",
+      V2009 > 60 & V2009 <= 70 ~ "61-70",
+      V2009 > 70 & V2009 <= 80 ~ "71-80",
+      V2009 > 80 & V2009 <= 90 ~ "81-90",
+      V2009 > 90               ~ "91+"
+    )
+  )
+```
+
+# Tópico 1
+
+## Descrição geral dos Indivíduos Ocupados
+
+```{r  echo=TRUE}
+# criando base de dados com as principais informações sobre os indivíduos ocupados
+a2 = df %>%
+  filter(VD4002 == 1) %>%
+  group_by(Ano) %>%
+  summarise(numero.ocupados = n(),
+            idade.media = mean(V2009, na.rm = TRUE),
+            renda.efet.media = mean(VD4020, na.rm = TRUE),
+            renda.habitual.media = mean(VD4019, na.rm = TRUE),
+            horas.habit.trabalhadas = mean(VD4031, na.rm = TRUE),
+            horas.efet.trabalhadas = mean(VD4035, na.rm = TRUE))
+# transformando a base em uma tabela
+  kable(a2, caption = "Descrição dos Ocupados - 2019 e 2020")
+
+```
+
+A partir de agora iniciaremos a análise gráfica das principais características dos indivíduos ocupados
+
+## Idade e Sexo dos ocupados em 2019 e 2020
+
+### 2019
+
+```{r  echo=TRUE}
+a = df %>%
+  filter(Ano == 2019, VD4002 == 1) %>%
+  group_by(idade_grupo, V2007) %>%
+  summarise(n())
+colnames(a) = c("Faixa.Etaria", "Sexo", "Freq")
+a$Sexo = as.character(a$Sexo)
+a %>%
+  ggplot(aes(fill=factor(Sexo), y=Freq, x=Faixa.Etaria)) + 
+  geom_bar(position="dodge", stat="identity")+
+  scale_fill_manual(name = "Sexo",
+                    labels= c("Masculino", "Feminino"),
+                    values = c("1", "2")) +
+  ggtitle("Distribuição etária dos ocupados - 2019") +
+  theme_classic() + 
+  ylab("Número de indivíduos Ocupados") +
+  xlab("Faixa Etária")
+
+```
+
+### 2020
+
+```{r  echo=TRUE}
+b = df %>%
+  filter(Ano == 2020, VD4002 == 1) %>%
+  group_by(idade_grupo, V2007) %>%
+  summarise(n())
+colnames(b) = c("Faixa.Etaria", "Sexo", "Freq")
+b$Sexo = as.character(b$Sexo)
+b %>%
+  ggplot(aes(fill=Sexo, y=Freq, x=Faixa.Etaria)) + 
+  geom_bar(position="dodge", stat="identity")+
+  scale_fill_manual(name = "Sexo",
+                    labels= c("Masculino", "Feminino"),
+                    values = c("1", "2")) +
+  ggtitle("Distribuição etária dos ocupados - 2020") +
+  theme_classic() + 
+  ylab("Número de indivíduos Ocupados")+
+  xlab("Faixa Etária")
+
+```
+
+
+## Perfil dos ocupados por Cor/Raça
+```{r  echo=TRUE}
+c = df %>%
+  filter(VD4002 == 1) %>%
+  group_by(V2010, Ano) %>%
+  summarise(n())
+colnames(c) = c("Cor", "Ano", "Freq")
+c$Cor = as.character(c$Cor)
+c$Ano = as.character(c$Ano)
+c %>%
+  ggplot(aes(fill=factor(Ano), y=Freq, x=factor(Cor))) + 
+  geom_bar(position="dodge", stat="identity")+
+  scale_fill_manual(name = "Ano",
+                    labels= c("2019", "2020"),
+                    values = c("2019", "2020")) +
+  ggtitle("Distribuição dos indivíduos ocupados por Cor/Raça") +
+  theme_classic() + 
+  ylab("Número de indivíduos Ocupados") +
+  scale_x_discrete(NULL,
+                   labels = c("Branca",
+                              "Preta",
+                              "Amarela",
+                              "Parda",
+                              "Indígena",
+                              "Ignorado"))
+
+```
+
+## Perfil dos ocupados por Instrução
+```{r  echo=TRUE}
+d = df %>%
+  filter(VD4002 == 1) %>%
+  group_by(VD3004, Ano) %>%
+  summarise(n())
+colnames(d) = c("Instrucao", "Ano", "Freq")
+d$Instrucao = as.character(d$Instrucao)
+d$Ano = as.character(d$Ano)
+d %>%
+  ggplot(aes(fill=factor(Ano), y=Freq, x=factor(Instrucao))) + 
+  geom_bar(position="dodge", stat="identity")+
+  scale_fill_manual(name = "Ano",
+                    labels= c("2019", "2020"),
+                    values = c("2019", "2020")) +
+  ggtitle("Distribuição dos indivíduos ocupados por Nível de Instrução") +
+  theme_classic() + 
+  ylab("Número de indivíduos Ocupados") +
+  scale_x_discrete(NULL,
+                   labels = c("Sem Instrução",
+                              "Fundamental Incompleto",
+                              "Fundamental Completo",
+                              "Médio Imcompleto",
+                              "Médio Completo",
+                              "Superior Incompleto",
+                              "Superior Completo")) +
+  theme(
+    axis.text.x = element_text(
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5
+  ))
+
+```
+
+
+## Perfil dos ocupados por Região
+
+```{r  echo=TRUE}
+#criação de uma função que atribua a região correta de acordo com o código da Unidade federativa.
+state2region = function(x){
+  if (x %in% c(11:17)){
+    return("Norte")
+  }
+  else 
+    if(x%in% c(21:29)){
+      return("Nordeste")
+    }
+  else
+    if(x%in% c(31:35)){
+      return("Sudeste")
+    }
+  else
+    if(x%in% c(41:43)){
+      return("Sul")
+    }
+  else
+    if(x%in% c(50:53)){
+      return("Centro.Oeste")
+    }
+
+}
+```
+
+```{r  echo=TRUE}
+#aplicandoa  função state2region aos dados
+df = df %>%
+  rowwise() %>%
+  mutate(regiao = state2region(as.numeric(UF)))
+```
+
+```{r  echo=TRUE}
+e = df %>%
+  filter(VD4002 == 1) %>%
+  group_by(regiao, Ano) %>%
+  summarise(n())
+colnames(e) = c("Regiao", "Ano", "Freq")
+e$Regiao = as.character(e$Regiao)
+e$Ano = as.character(e$Ano)
+e %>%
+  ggplot(aes(fill=factor(Ano), y=Freq, x=factor(Regiao))) + 
+  geom_bar(position="dodge", stat="identity")+
+  scale_fill_manual(name = "Ano",
+                    labels= c("2019", "2020"),
+                    values = c("2019", "2020")) +
+  ggtitle("Distribuição dos indivíduos ocupados por Região") +
+  theme_classic() + 
+  ylab("Número de indivíduos Ocupados") +
+  scale_x_discrete(NULL,
+                   labels = c("Centro Oeste",
+                              "Nordeste",
+                              "Norte",
+                              "Sudeste",
+                              "Sul")) 
+
+```
+
+
+## Renda Média dos ocupados a cada ano
+```{r  echo=TRUE}
+l = df %>%
+  filter(VD4002 == 1) %>%
+  group_by(Ano) %>%
+  summarise(renda.media.efetiva = mean(VD4020, na.rm = TRUE), renda.media.habit = mean(VD4019, na.rm = TRUE)) %>%
+  gather(cond, valor, c("renda.media.efetiva", "renda.media.habit"))
+colnames(l) = c("Ano", "Tipo", "Freq")
+l$Tipo = as.character(l$Tipo)
+l$Ano = as.character(l$Ano)
+l %>%
+  ggplot(aes(fill=Ano, y=Freq, x=Tipo)) + 
+  geom_bar(position="dodge", stat="identity")+
+  scale_fill_manual(name = "Ano",
+                    labels= c("2019", "2020"),
+                    values = c("2019", "2020")) +
+  ggtitle("Renda Média dos Indivíduos Ocupados (Efetiva e Habitual)") +
+  theme_classic() + 
+  ylab("R$") +
+  scale_x_discrete(NULL,
+                   labels = c("Renda Média Efetiva",
+                              "Renda Média Habitual"))
+
+
+```
+
+
+# Tópico 2
+
+Análise dos 3 grupos solicitados
+
+```{r  echo=TRUE}
+#criação da base de dados contendo informações dos três grupos solicitados
+ocup        = df %>% 
+  filter(VD4002 == 1) %>%
+  select(Ano, VD4020, VD4019) %>%
+  mutate(grupo = "ocup")
+
+ocup.reduz  = df %>% 
+  filter(VD4002 == 1 & 0.75*VD4031 >= VD4035) %>%
+  select(Ano, VD4020, VD4019) %>% 
+  mutate(grupo = "ocup.reduz")
+
+ocup.afast  = df %>% 
+  filter(VD4002 == 1 & V4005 == 1) %>%
+  select(Ano, VD4020, VD4019) %>%
+  mutate(grupo = "ocup.afast")
+
+data = rbind(ocup, ocup.reduz, ocup.afast)
+data = data[complete.cases(data),]
+data$Ano = as.character(data$Ano)
+
+```
+
+## Descrição inicial
+```{r  echo=TRUE}
+# descrição inicial dos 3 grupos
+k = data %>%
+  group_by(Ano, grupo) %>%
+  summarise(freq = n()) %>%
+  spread(grupo, freq)
+kable(k, caption = "Total de Indivíduos por grupo")
+```
+
+
+```{r  echo=TRUE}
+# Descrição da renda média de cada um dos grupos
+g = data %>% 
+  group_by(grupo, Ano) %>% 
+  summarise(renda.efetiva = mean(VD4020), renda.habitual = mean(VD4019))
+
+kable(g, caption = "Renda Habitual e Efetiva por grupo - 2019 e 2020")
+```
+
+## Análise gráfica: Boxplot
+
+```{r  echo=TRUE}
+# criação de gráfico Boxplot para dar uma ideia sobre a distribuição da renda de cada um dos grupos
+data %>%
+  ggplot(aes(x=grupo, y=VD4020, fill=Ano)) + 
+  geom_boxplot()+ 
+  coord_cartesian(ylim = c(0, 5000))+
+  scale_color_viridis(discrete = TRUE) +
+  ggtitle("Renda Média dos Indivíduos Por situação Ocupacional") +
+  theme_classic() + 
+  ylab("R$") +
+  scale_x_discrete(NULL,
+                   labels = c("Ocupados ",
+                              "Ocupados \n Temporariamente \n afastados ",
+                              "Ocupados \n Com redução \n na Jornada "))
+```
+
+## Análise gráfica: Gráfico de Barras
+
+```{r  echo=TRUE}
+# Renda média (habitual e efetiva), de cada grupo, por ano.
+g %>% 
+  gather(cond, valor, c("renda.efetiva", "renda.habitual")) %>%
+  ggplot(aes(fill=Ano, y=valor, x=grupo, alpha = cond)) + 
+  geom_bar(position="dodge", stat="identity", colour="black")+
+  scale_alpha_manual(name = "Situação",
+                     labels= c("Renda Efetiva", "Renda Habitual"),
+                     values=c(0.5, 1)) +
+  scale_fill_manual(name = "Ano",
+                    labels= c("2019", "2020"),
+                    values = c("2019", "2020")) +
+  ggtitle("Renda Média dos Indivíduos Por situação Ocupacional") +
+  theme_classic() + 
+  ylab("R$") +
+  scale_x_discrete(NULL,
+                   labels = c("Ocupados \n Com redução \n na Jornada ",
+                              "Ocupados \n Temporariamente \n afastados ",
+                              "Ocupados "))
+
+```
+
+
